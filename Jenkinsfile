@@ -129,44 +129,33 @@ pipeline {
 
 
     
-    stage('Validate ArgoCD Deployment') {
-      steps {
-        sh '''
-          echo "========== Validating ArgoCD Deployment =========="
-          
-          # Wait for ArgoCD to detect changes
-          echo "Waiting 30 seconds for ArgoCD to detect changes..."
-          sleep 30
-          
-          # Check if kubectl is available
-          if command -v kubectl &> /dev/null; then
-            echo "--- ArgoCD Application Status ---"
-            kubectl get application jenkins-app -n argocd 2>/dev/null || echo "ArgoCD application 'jenkins-app' not found"
-            
-            echo ""
-            echo "--- Deployment Status ---"
-            kubectl get deployment jenkins-app -n default 2>/dev/null || echo "Deployment not found yet"
-            
-            echo ""
-            echo "--- Pods Status ---"
-            kubectl get pods -n default -l app=jenkins-app 2>/dev/null || echo "No pods found yet"
-            
-            echo ""
-            echo "--- Recent Events ---"
-            kubectl get events -n default --sort-by='.lastTimestamp' | tail -10 || true
-            
-            echo ""
-            echo "✓ ArgoCD will automatically sync and deploy the new version"
-            echo "✓ New image: ${IMAGE_NAME}:${BUILD_NUMBER}"
-          else
-            echo "kubectl not available, skipping Kubernetes validation"
-            echo "ArgoCD will still automatically sync and deploy"
-          fi
-        '''
-      }
+     stage('Validate ArgoCD Deployment') {
+  steps {
+    withCredentials([usernamePassword(
+      credentialsId: 'argocd-cred',
+      usernameVariable: 'ARGO_USER',
+      passwordVariable: 'ARGO_PASS'
+    )]) {
+      sh '''
+        echo "========== Validating ArgoCD Deployment =========="
+        
+        # Login to ArgoCD
+        argocd login <ARGOCD_SERVER> --username $ARGO_USER --password $ARGO_PASS --insecure
+
+        # Wait for ArgoCD to detect changes
+        echo "Waiting 30 seconds for ArgoCD to detect changes..."
+        sleep 30
+
+        # Check ArgoCD application status
+        argocd app get <APP_NAME>
+
+        # Optionally, wait until healthy
+        argocd app wait <APP_NAME> --health --timeout 180
+      '''
     }
   }
-  
+}
+ 
   post {
     always {
       sh '''
