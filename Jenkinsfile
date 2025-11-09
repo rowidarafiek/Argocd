@@ -114,27 +114,31 @@ pipeline {
     }
 
     stage('Update Deployment Manifest') {
-      steps {
-        withCredentials([usernamePassword(
-          credentialsId: 'github-pat',
-          usernameVariable: 'GIT_USER',
-          passwordVariable: 'GIT_PASS'
-        )]) {
-          sh '''
-            echo "========== Updating Kubernetes Manifest =========="
-            git fetch origin
-            git checkout main || git checkout -b main
-            sed -i "s|image:.*|image: rowidarafiek/app:${BUILD_NUMBER}|" deployment.yaml
-            git config user.name "${GIT_USER}"
-            git config user.email "${GIT_EMAIL}"
-            git add deployment.yaml
-            git pull origin main --rebase
-            git commit -m "Update image to ${BUILD_NUMBER}" || echo "No changes to commit"
-            git push https://$GIT_USER:$GIT_PASS@github.com/rowidarafiek/${APP_REPO}.git main
-          '''
-        }
-      }
+  steps {
+    withCredentials([usernamePassword(
+      credentialsId: 'github-pat',
+      usernameVariable: 'GIT_USER',
+      passwordVariable: 'GIT_PASS'
+    )]) {
+      sh '''
+        echo "========== Updating Kubernetes Manifest =========="
+        git fetch origin
+        git checkout main || git checkout -b main
+        git reset --hard origin/main
+        git pull origin main --rebase || true
+
+        sed -i "s|image:.*|image: rowidarafiek/app:${BUILD_NUMBER}|" deployment.yaml
+
+        git config user.name "${GIT_USER}"
+        git config user.email "${GIT_EMAIL}"
+
+        git add deployment.yaml
+        git commit -m "Update image to ${BUILD_NUMBER}" || echo "No changes to commit"
+        git push https://$GIT_USER:$GIT_PASS@github.com/rowidarafiek/${APP_REPO}.git main
+      '''
     }
+  }
+}
 
     stage('Validate ArgoCD Deployment') {
       steps {
