@@ -34,6 +34,7 @@ pipeline {
 
         stage('Push Docker Image') {
             steps {
+                 sh 'mvn clean package -DskipTests'
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-cred', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     sh '''
                         echo "========== Pushing Docker Image =========="
