@@ -111,19 +111,7 @@ pipeline {
         '''
       }
     }
-    
-    stage('Update Deployment Manifest') {
-    steps {
-        sh '''
-        echo ========== Updating Kubernetes Manifest ==========
-        sed -i "s|image:.*|image: rowidarafiek/app:${BUILD_NUMBER}|" deployment.yaml
-        git add deployment.yaml
-        git commit -m "Update image to ${BUILD_NUMBER}" || echo "No changes to commit"
-        git push origin main
-        '''
-    }
-}
-
+ 
     stage('Update Deployment Manifest') {
     steps {
         sh '''
@@ -138,6 +126,7 @@ pipeline {
         '''
     }
 }
+
 
     
     stage('Validate ArgoCD Deployment') {
