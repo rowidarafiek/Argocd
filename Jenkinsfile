@@ -1,5 +1,5 @@
 pipeline {
-  agent { label 'agent-1' }
+  agent { label 'linux-docker' }
   
   environment {
     IMAGE_NAME = 'rowidarafiek/app'
