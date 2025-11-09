@@ -7,15 +7,15 @@ pipeline {
     MANIFEST_REPO = 'k8s-manifests'
     GIT_EMAIL = 'jenkins@cicd.local'
     GIT_NAME = 'Jenkins CI/CD'
-    ARGOCD_SERVER = '192.168.126.129:32443'  // Replace with your VM IP and NodePort
-    ARGO_APP_NAME = 'jenkins-app'             // Replace with your ArgoCD application name
+    ARGOCD_SERVER = '192.168.126.129:32443'
+    ARGO_APP_NAME = 'jenkins-app'
   }
 
   stages {
     stage('Clone Repository') {
       steps {
         withCredentials([usernamePassword(
-          credentialsId: 'github-cred',
+          credentialsId: 'github-pat',   // Credential with your GitHub username + PAT
           usernameVariable: 'GIT_USER',
           passwordVariable: 'GIT_PASS'
         )]) {
@@ -76,7 +76,6 @@ pipeline {
             docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} .
             docker tag ${IMAGE_NAME}:${BUILD_NUMBER} ${IMAGE_NAME}:latest
             echo "Docker image built successfully ✓"
-            echo "Image: ${IMAGE_NAME}:${BUILD_NUMBER}"
           '''
         }
       }
@@ -117,33 +116,21 @@ pipeline {
     stage('Update Deployment Manifest') {
       steps {
         withCredentials([usernamePassword(
-          credentialsId: 'github-cred',
+          credentialsId: 'github-pat',
           usernameVariable: 'GIT_USER',
           passwordVariable: 'GIT_PASS'
         )]) {
-          dir("${APP_REPO}") {
-            sh '''
-              echo "========== Updating Kubernetes Manifest =========="
-
-              # Fetch and checkout main safely
-              git fetch origin
-              if git show-ref --verify --quiet refs/heads/main; then
-                git checkout main
-              else
-                git checkout -b main origin/main || git checkout -b main
-              fi
-
-              # Update deployment image
-              sed -i "s|image:.*|image: rowidarafiek/app:${BUILD_NUMBER}|" deployment.yaml
-              git config user.name "rowidarafiek"
-              git config user.email "rowidarafiek83@gmail.com"
-              git add deployment.yaml
-              git commit -m "Update image to ${BUILD_NUMBER}" || echo "No changes to commit"
-
-              # Push changes safely
-              git push https://$GIT_USER:$GIT_PASS@github.com/rowidarafiek/${APP_REPO}.git main
-            '''
-          }
+          sh '''
+            echo "========== Updating Kubernetes Manifest =========="
+            git fetch origin
+            git checkout main || git checkout -b main
+            sed -i "s|image:.*|image: rowidarafiek/app:${BUILD_NUMBER}|" deployment.yaml
+            git config user.name "${GIT_USER}"
+            git config user.email "${GIT_EMAIL}"
+            git add deployment.yaml
+            git commit -m "Update image to ${BUILD_NUMBER}" || echo "No changes to commit"
+            git push https://$GIT_USER:$GIT_PASS@github.com/rowidarafiek/${APP_REPO}.git main
+          '''
         }
       }
     }
@@ -157,14 +144,8 @@ pipeline {
         )]) {
           sh '''
             echo "========== Validating ArgoCD Deployment =========="
-            
-            # Login to ArgoCD
             argocd login ${ARGOCD_SERVER} --username $ARGO_USER --password $ARGO_PASS --insecure
-
-            echo "Waiting 30 seconds for ArgoCD to detect changes..."
             sleep 30
-
-            # Check application status and wait until healthy
             argocd app get ${ARGO_APP_NAME}
             argocd app wait ${ARGO_APP_NAME} --health --timeout 180
           '''
@@ -184,28 +165,14 @@ pipeline {
     }
 
     success {
-      echo '========================================='
       echo '✅ Pipeline Completed Successfully!'
-      echo '========================================='
-      echo "✓ Build Number: ${BUILD_NUMBER}"
-      echo "✓ Docker Image: ${IMAGE_NAME}:${BUILD_NUMBER}"
-      echo "✓ Manifest Updated: deployment.yaml"
-      echo "✓ Changes Pushed to GitHub"
-      echo "✓ ArgoCD will deploy automatically"
-      echo '========================================='
     }
 
     failure {
-      echo '========================================='
       echo '❌ Pipeline Failed!'
-      echo '========================================='
-      echo "Build Number: ${BUILD_NUMBER}"
-      echo "Please check the logs above for details"
-      echo '========================================='
     }
 
     cleanup {
-      echo 'Cleaning up workspace...'
       cleanWs()
     }
   }
