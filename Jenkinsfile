@@ -128,6 +128,7 @@ pipeline {
             git config user.name "${GIT_USER}"
             git config user.email "${GIT_EMAIL}"
             git add deployment.yaml
+            git pull origin main --rebase
             git commit -m "Update image to ${BUILD_NUMBER}" || echo "No changes to commit"
             git push https://$GIT_USER:$GIT_PASS@github.com/rowidarafiek/${APP_REPO}.git main
           '''
