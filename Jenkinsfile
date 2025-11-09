@@ -86,7 +86,7 @@ pipeline {
                 withCredentials([usernamePassword(credentialsId: 'argocd-cred', usernameVariable: 'ARGO_USER', passwordVariable: 'ARGO_PASS')]) {
                     sh '''
                         echo "========== Validating ArgoCD Deployment =========="
-                        argocd login 192.168.136.129:32443 --username ${ARGO_USER} --password ${ARGO_PASS} --insecure
+                        argocd login 192.168.136.129:31718 --username ${ARGO_USER} --password ${ARGO_PASS} --insecure
                         argocd app sync myapp
                         argocd app wait myapp --health --timeout 180
                     '''
