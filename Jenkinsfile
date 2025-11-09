@@ -113,49 +113,17 @@ pipeline {
     }
     
     stage('Update Deployment Manifest') {
-      steps {
-        withCredentials([usernamePassword(
-          credentialsId: 'github-cred',
-          usernameVariable: 'GIT_USER',
-          passwordVariable: 'GIT_PASS'
-        )]) {
-          sh '''
-            echo "========== Updating Kubernetes Manifest =========="
-            
-            # Clean up any existing manifest repo
-            rm -rf ${MANIFEST_REPO}
-            
-            # Clone manifest repository
-            git clone https://$GIT_USER:$GIT_PASS@github.com/rowidarafiek/${MANIFEST_REPO}.git
-            cd ${MANIFEST_REPO}
-            
-            # Configure git
-            git config user.email "${GIT_EMAIL}"
-            git config user.name "${GIT_NAME}"
-            
-            # Update image tag in deployment.yaml
-            # This will find and replace the image line with the new tag
-            sed -i "s|image: ${IMAGE_NAME}:.*|image: ${IMAGE_NAME}:${BUILD_NUMBER}|g" deployment.yaml
-            
-            # Alternative: if you want to update a specific pattern
-            # sed -i "s|rowidarafiek/app:.*|${IMAGE_NAME}:${BUILD_NUMBER}|g" deployment.yaml
-            
-            echo "=== Updated deployment.yaml ==="
-            cat deployment.yaml | grep -A 2 "image:"
-            
-            # Check if there are changes to commit
-            if git diff --quiet; then
-              echo "No changes detected in deployment.yaml"
-            else
-              echo "Changes detected, preparing to commit..."
-              git add deployment.yaml
-              git commit -m "Update image to ${IMAGE_NAME}:${BUILD_NUMBER} - Build #${BUILD_NUMBER}"
-              echo "Manifest updated successfully ✓"
-            fi
-          '''
-        }
-      }
+    steps {
+        sh '''
+        echo ========== Updating Kubernetes Manifest ==========
+        sed -i "s|image:.*|image: rowidarafiek/app:${BUILD_NUMBER}|" deployment.yaml
+        git add deployment.yaml
+        git commit -m "Update image to ${BUILD_NUMBER}" || echo "No changes to commit"
+        git push origin main
+        '''
     }
+}
+
     
     stage('Push Updates to GitHub') {
       steps {
