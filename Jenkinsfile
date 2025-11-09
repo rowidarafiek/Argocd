@@ -1,191 +1,101 @@
+@Library('shared-lib') _
+
 pipeline {
-  agent { label 'linux-docker' }
+    agent { label 'linux-docker' }
 
-  environment {
-    IMAGE_NAME = 'rowidarafiek/app'
-    APP_REPO = 'jenkins'
-    MANIFEST_REPO = 'k8s-manifests'
-    GIT_EMAIL = 'jenkins@cicd.local'
-    GIT_NAME = 'Jenkins CI/CD'
-    ARGOCD_SERVER = '192.168.126.129:32443'
-    ARGO_APP_NAME = 'jenkins-app'
-  }
+    environment {
+        IMAGE_NAME = 'rowidarafiek/app'
+    }
 
-  stages {
-    stage('Clone Repository') {
-      steps {
-        withCredentials([usernamePassword(
-          credentialsId: 'github-pat',   // Credential with your GitHub username + PAT
-          usernameVariable: 'GIT_USER',
-          passwordVariable: 'GIT_PASS'
-        )]) {
-          sh '''
-            echo "========== Cloning Application Repository =========="
-            rm -rf ${APP_REPO}
-            git clone https://$GIT_USER:$GIT_PASS@github.com/rowidarafiek/${APP_REPO}.git
-            echo "Repository cloned successfully ✓"
-          '''
+    stages {
+
+        stage('Clone Repository') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'github-pat', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
+                    sh '''
+                        echo "========== Cloning Repository =========="
+                        rm -rf Argocd
+                        git clone https://${GIT_USER}:${GIT_PASS}@github.com/rowidarafiek/Argocd.git
+                        cd Argocd
+                        git checkout main
+                    '''
+                }
+            }
         }
-      }
-    }
 
-    stage('Run Unit Tests') {
-      steps {
-        dir("${APP_REPO}") {
-          sh '''
-            echo "========== Running Unit Tests =========="
-            if [ -f pom.xml ]; then
-              mvn test
-              echo "Tests passed ✓"
-            else
-              echo "No test files found, skipping..."
-            fi
-          '''
+        stage('Build Docker Image') {
+            steps {
+                sh '''
+                    echo "========== Building Docker Image =========="
+                    docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} .
+                '''
+            }
         }
-      }
-    }
 
-    stage('Build Application') {
-      steps {
-        dir("${APP_REPO}") {
-          sh '''
-            echo "========== Building Application =========="
-            if [ -f pom.xml ]; then
-              mvn clean package -DskipTests
-              echo "Application built successfully ✓"
-            elif [ -f package.json ]; then
-              npm install
-              npm run build
-              echo "Node.js application built successfully ✓"
-            elif [ -f requirements.txt ]; then
-              pip install -r requirements.txt
-              echo "Python dependencies installed ✓"
-            else
-              echo "No build file detected, skipping..."
-            fi
-          '''
+        stage('Push Docker Image') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-cred', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh '''
+                        echo "========== Pushing Docker Image =========="
+                        echo "${DOCKER_PASS}" | docker login -u "${DOCKER_USER}" --password-stdin
+                        docker push ${IMAGE_NAME}:${BUILD_NUMBER}
+                    '''
+                }
+            }
         }
-      }
-    }
 
-    stage('Build Docker Image') {
-      steps {
-        dir("${APP_REPO}") {
-          sh '''
-            echo "========== Building Docker Image =========="
-            docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} .
-            docker tag ${IMAGE_NAME}:${BUILD_NUMBER} ${IMAGE_NAME}:latest
-            echo "Docker image built successfully ✓"
-          '''
+        stage('Update Deployment Manifest') {
+            steps {
+                dir('Argocd') {
+                    withCredentials([usernamePassword(credentialsId: 'github-pat', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
+                        sh '''
+                            echo "========== Updating Kubernetes Manifest =========="
+                            git fetch origin main
+                            git checkout main
+                            git reset --hard origin/main
+
+                            sed -i "s|image:.*|image: rowidarafiek/app:${BUILD_NUMBER}|" deployment.yaml
+
+                            git config user.name "rowidarafiek"
+                            git config user.email "jenkins@cicd.local"
+                            git add deployment.yaml
+                            git commit -m "Update image to ${BUILD_NUMBER}" || true
+
+                            git pull origin main --rebase
+                            git push https://${GIT_USER}:${GIT_PASS}@github.com/rowidarafiek/Argocd.git main
+                        '''
+                    }
+                }
+            }
         }
-      }
-    }
 
-    stage('Push Docker Image to Registry') {
-      steps {
-        withCredentials([usernamePassword(
-          credentialsId: 'dockerhub-cred',
-          usernameVariable: 'DOCKER_USER',
-          passwordVariable: 'DOCKER_PASS'
-        )]) {
-          dir("${APP_REPO}") {
-            sh '''
-              echo "========== Pushing to Docker Hub =========="
-              echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-              docker push ${IMAGE_NAME}:${BUILD_NUMBER}
-              docker push ${IMAGE_NAME}:latest
-              echo "Image pushed successfully ✓"
-            '''
-          }
+        stage('Validate ArgoCD Deployment') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'argocd-cred', usernameVariable: 'ARGO_USER', passwordVariable: 'ARGO_PASS')]) {
+                    sh '''
+                        echo "========== Validating ArgoCD Deployment =========="
+                        if ! command -v argocd >/dev/null 2>&1; then
+                            echo "ArgoCD CLI not found. Please install it on the Jenkins agent."
+                            exit 1
+                        fi
+
+                        argocd login 192.168.126.129:32443 --username ${ARGO_USER} --password ${ARGO_PASS} --insecure
+                        argocd app sync myapp
+                        argocd app wait myapp --health --timeout 180
+                    '''
+                }
+            }
         }
-      }
     }
 
-    stage('Delete Docker Image') {
-      steps {
-        sh '''
-          echo "========== Cleaning Up Local Images =========="
-          docker rmi ${IMAGE_NAME}:${BUILD_NUMBER} || true
-          docker rmi ${IMAGE_NAME}:latest || true
-          docker system prune -f
-          echo "Local images deleted ✓"
-        '''
-      }
-    }
-
-    stage('Update Deployment Manifest') {
-  steps {
-    withCredentials([usernamePassword(
-      credentialsId: 'github-pat',
-      usernameVariable: 'GIT_USER',
-      passwordVariable: 'GIT_PASS'
-    )]) {
-      sh '''
-        echo "========== Updating Kubernetes Manifest =========="
-
-        # Ensure we're on main and synced
-        git fetch origin main
-        git checkout main || git checkout -b main
-        git reset --hard origin/main
-
-        # Update deployment image
-        sed -i "s|image:.*|image: rowidarafiek/app:${BUILD_NUMBER}|" deployment.yaml
-
-        # Configure user
-        git config user.name "${GIT_USER}"
-        git config user.email "${GIT_EMAIL}"
-
-        # Commit and push safely
-        git add deployment.yaml
-        git commit -m "Update image to ${BUILD_NUMBER}" || echo "No changes to commit"
-        git pull origin main --rebase || true
-        git push https://${GIT_USER}:${GIT_PASS}@github.com/rowidarafiek/${APP_REPO}.git main || true
-      '''
-    }
-  }
-}
- 
-
-    stage('Validate ArgoCD Deployment') {
-      steps {
-        withCredentials([usernamePassword(
-          credentialsId: 'argocd-cred',
-          usernameVariable: 'ARGO_USER',
-          passwordVariable: 'ARGO_PASS'
-        )]) {
-          sh '''
-            echo "========== Validating ArgoCD Deployment =========="
-            argocd login ${ARGOCD_SERVER} --username $ARGO_USER --password $ARGO_PASS --insecure
-            sleep 30
-            argocd app get ${ARGO_APP_NAME}
-            argocd app wait ${ARGO_APP_NAME} --health --timeout 180
-          '''
+    post {
+        success {
+            echo "✅ Deployment Successful!"
         }
-      }
+        failure {
+            echo "❌ Pipeline Failed!"
+            cleanWs()
+        }
     }
-  }
-
-  post {
-    always {
-      sh '''
-        echo "========== Cleanup =========="
-        docker logout || true
-        docker image prune -f || true
-        rm -rf ${MANIFEST_REPO} || true
-      '''
-    }
-
-    success {
-      echo '✅ Pipeline Completed Successfully!'
-    }
-
-    failure {
-      echo '❌ Pipeline Failed!'
-    }
-
-    cleanup {
-      cleanWs()
-    }
-  }
 }
 
