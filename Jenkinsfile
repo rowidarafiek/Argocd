@@ -115,19 +115,27 @@ pipeline {
     }
 
     stage('Update Deployment Manifest') {
-      steps {
-        sh '''
-          echo "========== Updating Kubernetes Manifest =========="
-          sed -i "s|image:.*|image: rowidarafiek/app:${BUILD_NUMBER}|" deployment.yaml
-          git config user.name "rowidarafiek"
-          git config user.email "rowidarafiek@example.com"
-          git add deployment.yaml
-          git commit -m "Update image to ${BUILD_NUMBER}" || echo "No changes to commit"
-          git checkout -b main || git checkout main
-          git push origin main
-        '''
-      }
+  steps {
+    withCredentials([usernamePassword(
+      credentialsId: 'github-cred',
+      usernameVariable: 'GIT_USER',
+      passwordVariable: 'GIT_PASS'
+    )]) {
+      sh '''
+        echo "========== Updating Kubernetes Manifest =========="
+        sed -i "s|image:.*|image: rowidarafiek/app:${BUILD_NUMBER}|" deployment.yaml
+        git config user.name "rowidarafiek"
+        git config user.email "rowidarafiek83@gmail.com"
+        git add deployment.yaml
+        git commit -m "Update image to ${BUILD_NUMBER}" || echo "No changes to commit"
+
+        # Push using credentials
+        git push https://$GIT_USER:$GIT_PASS@github.com/rowidarafiek/${APP_REPO}.git main
+      '''
     }
+  }
+}
+
 
     stage('Validate ArgoCD Deployment') {
       steps {
