@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: myapp
-        image: rowidarafiek/app:latest
+        image: rowidarafiek/app:23
         ports:
         - containerPort: 8080
 
