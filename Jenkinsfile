@@ -1,14 +1,16 @@
 pipeline {
   agent { label 'linux-docker' }
-  
+
   environment {
     IMAGE_NAME = 'rowidarafiek/app'
     APP_REPO = 'jenkins'
-    MANIFEST_REPO = 'k8s-manifests'  // Your manifest repository name
+    MANIFEST_REPO = 'k8s-manifests'
     GIT_EMAIL = 'jenkins@cicd.local'
     GIT_NAME = 'Jenkins CI/CD'
+    ARGOCD_SERVER = '192.168.126.129:32443'  // Replace with your VM IP and NodePort
+    ARGO_APP_NAME = 'jenkins-app'         // Replace with your ArgoCD application name
   }
-  
+
   stages {
     stage('Clone Repository') {
       steps {
@@ -26,7 +28,7 @@ pipeline {
         }
       }
     }
-    
+
     stage('Run Unit Tests') {
       steps {
         dir("${APP_REPO}") {
@@ -42,7 +44,7 @@ pipeline {
         }
       }
     }
-    
+
     stage('Build Application') {
       steps {
         dir("${APP_REPO}") {
@@ -65,7 +67,7 @@ pipeline {
         }
       }
     }
-    
+
     stage('Build Docker Image') {
       steps {
         dir("${APP_REPO}") {
@@ -79,7 +81,7 @@ pipeline {
         }
       }
     }
-    
+
     stage('Push Docker Image to Registry') {
       steps {
         withCredentials([usernamePassword(
@@ -99,7 +101,7 @@ pipeline {
         }
       }
     }
-    
+
     stage('Delete Docker Image') {
       steps {
         sh '''
@@ -111,51 +113,50 @@ pipeline {
         '''
       }
     }
- 
+
     stage('Update Deployment Manifest') {
-    steps {
+      steps {
         sh '''
-        echo ========== Updating Kubernetes Manifest ==========
-        sed -i "s|image:.*|image: rowidarafiek/app:${BUILD_NUMBER}|" deployment.yaml
-        git config user.name "rowidarafiek"
-        git config user.email "rowidarafiek@example.com"
-        git add deployment.yaml
-        git commit -m "Update image to ${BUILD_NUMBER}" || echo "No changes to commit"
-        git checkout -b main || git checkout main
-        git push origin main
+          echo "========== Updating Kubernetes Manifest =========="
+          sed -i "s|image:.*|image: rowidarafiek/app:${BUILD_NUMBER}|" deployment.yaml
+          git config user.name "rowidarafiek"
+          git config user.email "rowidarafiek@example.com"
+          git add deployment.yaml
+          git commit -m "Update image to ${BUILD_NUMBER}" || echo "No changes to commit"
+          git checkout -b main || git checkout main
+          git push origin main
         '''
+      }
     }
-}
 
+    stage('Validate ArgoCD Deployment') {
+      steps {
+        withCredentials([usernamePassword(
+          credentialsId: 'argocd-cred',
+          usernameVariable: 'ARGO_USER',
+          passwordVariable: 'ARGO_PASS'
+        )]) {
+          sh '''
+            echo "========== Validating ArgoCD Deployment =========="
+            
+            # Login to ArgoCD using VM IP and NodePort
+            argocd login ${ARGOCD_SERVER} --username $ARGO_USER --password $ARGO_PASS --insecure
+            
+            # Wait for ArgoCD to detect changes
+            echo "Waiting 30 seconds for ArgoCD to detect changes..."
+            sleep 30
 
-    
-     stage('Validate ArgoCD Deployment') {
-  steps {
-    withCredentials([usernamePassword(
-      credentialsId: 'argocd-cred',
-      usernameVariable: 'ARGO_USER',
-      passwordVariable: 'ARGO_PASS'
-    )]) {
-      sh '''
-        echo "========== Validating ArgoCD Deployment =========="
-        
-        # Login to ArgoCD
-        argocd login <ARGOCD_SERVER> --username $ARGO_USER --password $ARGO_PASS --insecure
+            # Check ArgoCD application status
+            argocd app get ${ARGO_APP_NAME}
 
-        # Wait for ArgoCD to detect changes
-        echo "Waiting 30 seconds for ArgoCD to detect changes..."
-        sleep 30
-
-        # Check ArgoCD application status
-        argocd app get <APP_NAME>
-
-        # Optionally, wait until healthy
-        argocd app wait <APP_NAME> --health --timeout 180
-      '''
+            # Wait until healthy
+            argocd app wait ${ARGO_APP_NAME} --health --timeout 180
+          '''
+        }
+      }
     }
   }
-}
- 
+
   post {
     always {
       sh '''
@@ -165,7 +166,7 @@ pipeline {
         rm -rf ${MANIFEST_REPO} || true
       '''
     }
-    
+
     success {
       echo '========================================='
       echo '✅ Pipeline Completed Successfully!'
@@ -177,7 +178,7 @@ pipeline {
       echo "✓ ArgoCD will deploy automatically"
       echo '========================================='
     }
-    
+
     failure {
       echo '========================================='
       echo '❌ Pipeline Failed!'
@@ -186,10 +187,11 @@ pipeline {
       echo "Please check the logs above for details"
       echo '========================================='
     }
-    
+
     cleanup {
       echo 'Cleaning up workspace...'
       cleanWs()
     }
   }
 }
+
