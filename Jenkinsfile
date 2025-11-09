@@ -8,7 +8,7 @@ pipeline {
     GIT_EMAIL = 'jenkins@cicd.local'
     GIT_NAME = 'Jenkins CI/CD'
     ARGOCD_SERVER = '192.168.126.129:32443'  // Replace with your VM IP and NodePort
-    ARGO_APP_NAME = 'jenkins-app'         // Replace with your ArgoCD application name
+    ARGO_APP_NAME = 'jenkins-app'             // Replace with your ArgoCD application name
   }
 
   stages {
@@ -115,27 +115,38 @@ pipeline {
     }
 
     stage('Update Deployment Manifest') {
-  steps {
-    withCredentials([usernamePassword(
-      credentialsId: 'github-cred',
-      usernameVariable: 'GIT_USER',
-      passwordVariable: 'GIT_PASS'
-    )]) {
-      sh '''
-        echo "========== Updating Kubernetes Manifest =========="
-        sed -i "s|image:.*|image: rowidarafiek/app:${BUILD_NUMBER}|" deployment.yaml
-        git config user.name "rowidarafiek"
-        git config user.email "rowidarafiek83@gmail.com"
-        git add deployment.yaml
-        git commit -m "Update image to ${BUILD_NUMBER}" || echo "No changes to commit"
+      steps {
+        withCredentials([usernamePassword(
+          credentialsId: 'github-cred',
+          usernameVariable: 'GIT_USER',
+          passwordVariable: 'GIT_PASS'
+        )]) {
+          dir("${APP_REPO}") {
+            sh '''
+              echo "========== Updating Kubernetes Manifest =========="
 
-        # Push using credentials
-        git push https://$GIT_USER:$GIT_PASS@github.com/rowidarafiek/${APP_REPO}.git main
-      '''
+              # Fetch and checkout main safely
+              git fetch origin
+              if git show-ref --verify --quiet refs/heads/main; then
+                git checkout main
+              else
+                git checkout -b main origin/main || git checkout -b main
+              fi
+
+              # Update deployment image
+              sed -i "s|image:.*|image: rowidarafiek/app:${BUILD_NUMBER}|" deployment.yaml
+              git config user.name "rowidarafiek"
+              git config user.email "rowidarafiek83@gmail.com"
+              git add deployment.yaml
+              git commit -m "Update image to ${BUILD_NUMBER}" || echo "No changes to commit"
+
+              # Push changes safely
+              git push https://$GIT_USER:$GIT_PASS@github.com/rowidarafiek/${APP_REPO}.git main
+            '''
+          }
+        }
+      }
     }
-  }
-}
-
 
     stage('Validate ArgoCD Deployment') {
       steps {
@@ -147,17 +158,14 @@ pipeline {
           sh '''
             echo "========== Validating ArgoCD Deployment =========="
             
-            # Login to ArgoCD using VM IP and NodePort
+            # Login to ArgoCD
             argocd login ${ARGOCD_SERVER} --username $ARGO_USER --password $ARGO_PASS --insecure
-            
-            # Wait for ArgoCD to detect changes
+
             echo "Waiting 30 seconds for ArgoCD to detect changes..."
             sleep 30
 
-            # Check ArgoCD application status
+            # Check application status and wait until healthy
             argocd app get ${ARGO_APP_NAME}
-
-            # Wait until healthy
             argocd app wait ${ARGO_APP_NAME} --health --timeout 180
           '''
         }
