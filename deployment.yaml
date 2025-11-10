@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: jenkins-app-deployment
-  
+  namespace: prod  
   labels:
     app: jenkins-app
     env: production
@@ -64,7 +64,8 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: jenkins-app-service 
+  name: jenkins-app-service
+  namespace: prod 
   labels:
     app: jenkins-app
 spec:
