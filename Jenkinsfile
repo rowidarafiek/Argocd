@@ -5,112 +5,65 @@ pipeline {
 
     environment {
         IMAGE_NAME = "rowidarafiek/app"
-        DOCKER_CREDS = "dockerhub-cred"
+        IMAGE_TAG  = "${env.BUILD_NUMBER}"
+        DOCKER_CREDS = 'dockerhub-cred'
+        GIT_BRANCH  = "${env.BRANCH_NAME}"
+        GIT_COMMIT_MESSAGE = "Automated update from Jenkins ${env.BUILD_NUMBER}"
     }
 
     stages {
-
-        stage('Clone Repository') {
-            steps {
-                script {
-                    echo "Cloning repository"
-                    withCredentials([usernamePassword(
-                        credentialsId: 'github-cred',
-                        usernameVariable: 'GIT_USER',
-                        passwordVariable: 'GIT_PASS'
-                    )]) {
-                        sh """
-                            rm -rf jenkins
-                            git clone https://${GIT_USER}:${GIT_PASS}@github.com/rowidarafiek/jenkins.git
-                        """
-                    }
-                }
-            }
-        }
-
         stage('Run Unit Tests') {
             steps {
-                dir('jenkins') {
-                    script {
-                        unitTests()
-                    }
-                }
+                unitTests()
             }
         }
 
-        stage('Build Application') {
+        stage('Build the Application') {
             steps {
-                dir('jenkins') {
-                    script {
-                        buildApp()
-                    }
-                }
+                buildApp()
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                dir('jenkins') {
-                    script {
-                        IMAGE_TAG = "${env.BRANCH_NAME}-${env.BUILD_NUMBER}"
-                        buildDockerImage(IMAGE_NAME, IMAGE_TAG)
-                    }
-                }
+                buildDockerImage(IMAGE_NAME, IMAGE_TAG)
             }
         }
 
-        stage('Push Docker Image') {
+        stage('Push Docker Image to Registry') {
             steps {
-                dir('jenkins') {
-                    script {
-                        pushDockerImage(IMAGE_NAME, IMAGE_TAG, DOCKER_CREDS)
-                    }
-                }
+                pushDockerImage(IMAGE_NAME, IMAGE_TAG)
             }
         }
 
         stage('Update Deployment YAML') {
             steps {
-                dir('jenkins') {
-                    script {
-                        updateDeploymentYaml(IMAGE_NAME, IMAGE_TAG)
-                    }
-                }
+                updateDeploymentYaml(IMAGE_NAME, IMAGE_TAG)
             }
         }
 
         stage('Push Changes to GitHub') {
             steps {
-                dir('jenkins') {
-                    script {
-                        pushToGithub(env.BRANCH_NAME, "Update deployment.yaml with new image ${IMAGE_NAME}:${IMAGE_TAG}")
-                    }
-                }
+                pushToGithub(GIT_BRANCH, GIT_COMMIT_MESSAGE)
             }
         }
 
         stage('Remove Local Docker Image') {
             steps {
-                dir('jenkins') {
-                    script {
-                        removeDockerImage(IMAGE_NAME, IMAGE_TAG)
-                    }
-                }
+                removeDockerImage(IMAGE_NAME, IMAGE_TAG)
             }
         }
     }
 
     post {
+        always {
+            echo 'Pipeline completed'
+        }
         success {
-            echo "Pipeline completed successfully"
-            sh 'docker image prune -f || true'
+            echo 'Pipeline completed successfully'
         }
         failure {
-            echo "Pipeline failed"
-            sh 'docker image prune -f || true'
-        }
-        always {
-            cleanWs(deleteDirs: true, disableDeferredWipeout: true)
+            echo 'Pipeline completed with failure'
         }
     }
 }
