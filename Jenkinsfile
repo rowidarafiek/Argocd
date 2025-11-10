@@ -29,12 +29,11 @@ pipeline {
                 buildDockerImage(IMAGE_NAME, IMAGE_TAG)
             }
         }
-
         stage('Push Docker Image to Registry') {
-            steps {
-                pushDockerImage(IMAGE_NAME, IMAGE_TAG)
-            }
-        }
+    steps {
+        pushDockerImage(IMAGE_NAME, IMAGE_TAG, DOCKER_CREDS)
+    }
+}
 
         stage('Update Deployment YAML') {
             steps {
