@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: myapp-config
+  namespace: dev
+data:
+  ENV: dev
+  API_URL: https://dev.example.com
+
