@@ -64,8 +64,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: jenkins-app-service
-  namespace: default
+  name: jenkins-app-service 
   labels:
     app: jenkins-app
 spec:
