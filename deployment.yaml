@@ -2,7 +2,10 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: jenkins-app-deployment
+<<<<<<< HEAD
   
+=======
+>>>>>>> dev
   labels:
     app: jenkins-app
     env: production
