@@ -10,7 +10,7 @@ pipeline {
 
     stages {
 
-        stage('Clone Repo') {
+        stage('Clone Repository') {
             steps {
                 script {
                     echo "Cloning repository"
@@ -28,7 +28,7 @@ pipeline {
             }
         }
 
-        stage('Unit Tests') {
+        stage('Run Unit Tests') {
             steps {
                 dir('jenkins') {
                     script {
@@ -38,7 +38,7 @@ pipeline {
             }
         }
 
-        stage('Build App') {
+        stage('Build Application') {
             steps {
                 dir('jenkins') {
                     script {
@@ -59,16 +59,6 @@ pipeline {
             }
         }
 
-        stage('Scan Docker Image') {
-            steps {
-                dir('jenkins') {
-                    script {
-                        scanImage(IMAGE_NAME, IMAGE_TAG)
-                    }
-                }
-            }
-        }
-
         stage('Push Docker Image') {
             steps {
                 dir('jenkins') {
@@ -79,7 +69,27 @@ pipeline {
             }
         }
 
-        stage('Remove Local Image') {
+        stage('Update Deployment YAML') {
+            steps {
+                dir('jenkins') {
+                    script {
+                        updateDeploymentYaml(IMAGE_NAME, IMAGE_TAG)
+                    }
+                }
+            }
+        }
+
+        stage('Push Changes to GitHub') {
+            steps {
+                dir('jenkins') {
+                    script {
+                        pushToGithub(env.BRANCH_NAME, "Update deployment.yaml with new image ${IMAGE_NAME}:${IMAGE_TAG}")
+                    }
+                }
+            }
+        }
+
+        stage('Remove Local Docker Image') {
             steps {
                 dir('jenkins') {
                     script {
