@@ -4,17 +4,15 @@ def call() {
             git config user.name "rowidarafiek"
             git config user.email "rowidarafiek@domain.com"
 
-            # Checkout branch
             git checkout -B ${env.BRANCH_NAME}
-
-            git add deployment.yaml
+            git add ${env.DEPLOYMENT_FILE}
 
             if git diff --staged --quiet; then
                 echo "No changes to commit"
             else
                 git commit -m "${env.COMMIT_MESSAGE}"
                 git push https://${GIT_USER}:${GIT_PASS}@github.com/rowidarafiek/Argocd.git HEAD:${env.BRANCH_NAME}
-                echo "Successfully pushed changes to GitHub"
+                echo "Changes pushed to GitHub"
             fi
         """
     }
