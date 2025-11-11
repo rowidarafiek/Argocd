@@ -7,7 +7,7 @@ pipeline {
         IMAGE_NAME = "rowidarafiek/app"
         IMAGE_TAG = "${env.BUILD_NUMBER}"
         DOCKER_CREDS = 'dockerhub-cred'
-        GIT_CREDS = 'github-cred'
+        GIT_CREDS = 'github-pat'
         BRANCH_NAME = "${env.BRANCH_NAME}" // Multibranch will provide dev/stag/prod
         COMMIT_MESSAGE = "Automated update from Jenkins ${IMAGE_TAG}"
         DEPLOYMENT_FILE = 'deployment.yaml'
