@@ -33,16 +33,19 @@ pipeline {
         stage('Push Docker Image') {
             steps { script { pushDockerImage() } }
         }
+        stage('Push to GitHub') {
+    steps { script { pushToGithub() } }
+}
+       stage('Validate ArgoCD Deployment') {
+    steps {
+        sh 'argocd app sync app'
+        sh 'argocd app wait app --health'
+    }
+}
 
         stage('Update Deployment YAML') {
             steps { script { updateDeploymentYaml() } }
         }
-
-        stage('Push to GitHub') {
-            steps { script { pushToGithub() } }
-        }
-    }
-
     post {
         always { echo 'Pipeline completed' }
         success { echo 'Pipeline completed successfully' }
