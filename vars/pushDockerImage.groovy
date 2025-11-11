@@ -1,10 +1,9 @@
-def call(String imageName, String tag, String creds) {
-    echo "Pushing Docker image ${imageName}:${tag}"
-    withCredentials([usernamePassword(credentialsId: creds, usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+def call() {
+    echo "Pushing Docker image ${env.IMAGE_NAME}:${env.IMAGE_TAG}"
+    withCredentials([usernamePassword(credentialsId: env.DOCKER_CREDS, usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
         sh """
-            echo $PASS | docker login -u $USER --password-stdin
-            docker push ${imageName}:${tag}
+            echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
+            docker push ${env.IMAGE_NAME}:${env.IMAGE_TAG}
         """
     }
 }
-

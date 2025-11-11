@@ -1,69 +1,46 @@
 @Library('shared-library') _
 
 pipeline {
-    agent { label 'linux-docker' }
+    agent { label 'new-agent' }
 
-    environment {
+    environment {  
         IMAGE_NAME = "rowidarafiek/app"
-        IMAGE_TAG  = "${env.BUILD_NUMBER}"
+        IMAGE_TAG = "25"
         DOCKER_CREDS = 'dockerhub-cred'
-        GIT_BRANCH  = "${env.BRANCH_NAME}"
-        GIT_COMMIT_MESSAGE = "Automated update from Jenkins ${env.BUILD_NUMBER}"
+        GIT_CREDS = 'github-cred'
+        BRANCH_NAME = 'stag'
+        COMMIT_MESSAGE = "Automated update from Jenkins ${IMAGE_TAG}"
     }
 
     stages {
         stage('Run Unit Tests') {
-            steps {
-                unitTests()
-            }
+            steps { script { unitTests() } }
         }
 
         stage('Build the Application') {
-            steps {
-                buildApp()
-            }
+            steps { script { buildApp() } }
         }
 
         stage('Build Docker Image') {
-            steps {
-                buildDockerImage(IMAGE_NAME, IMAGE_TAG)
-            }
+            steps { script { buildDockerImage() } }
         }
-        stage('Push Docker Image to Registry') {
-    steps {
-        pushDockerImage(IMAGE_NAME, IMAGE_TAG, DOCKER_CREDS)
-    }
-}
+
+        stage('Push Docker Image') {
+            steps { script { pushDockerImage() } }
+        }
 
         stage('Update Deployment YAML') {
-            steps {
-                updateDeploymentYaml(IMAGE_NAME, IMAGE_TAG)
-            }
+            steps { script { updateDeploymentYaml() } }
         }
 
-        stage('Push Changes to GitHub') {
-            steps {
-                pushToGithub(GIT_BRANCH, GIT_COMMIT_MESSAGE)
-            }
-        }
-
-        stage('Remove Local Docker Image') {
-            steps {
-                removeDockerImage(IMAGE_NAME, IMAGE_TAG)
-            }
+        stage('Push to GitHub') {
+            steps { script { pushToGithub() } }
         }
     }
 
     post {
-        always {
-            echo 'Pipeline completed'
-        }
-        success {
-            echo 'Pipeline completed successfully'
-        }
-        failure {
-            echo 'Pipeline completed with failure'
-        }
+        always { echo 'Pipeline completed' }
+        success { echo 'Pipeline completed successfully' }
+        failure { echo 'Pipeline completed with failure' }
     }
 }
-
