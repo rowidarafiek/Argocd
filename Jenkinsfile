@@ -13,25 +13,12 @@ pipeline {
     }
 
     stages {
-        stage('Check Workspace') {
-            steps {
-                sh 'pwd'
-                sh 'ls -l'
-            }
-        }
-
         stage('Run Unit Tests') {
             steps { script { unitTests() } }
         }
 
         stage('Build the Application') {
             steps { script { buildApp() } }
-        }
-
-        stage('Verify Build Artifact') {
-            steps {
-                sh 'ls -l target/'
-            }
         }
 
         stage('Build Docker Image') {
