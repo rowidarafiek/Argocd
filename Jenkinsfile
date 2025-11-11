@@ -12,7 +12,15 @@ pipeline {
         COMMIT_MESSAGE = "Automated update from Jenkins ${IMAGE_TAG}"
     }
 
-    stages {
+    stages 
+        {
+        stage('Check Workspace') {
+    steps {
+        sh 'pwd'
+        sh 'ls -l'
+    }
+}
+
         stage('Verify Build Artifact') {
     steps {
         sh 'ls -l target/'
