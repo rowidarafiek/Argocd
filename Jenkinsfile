@@ -13,6 +13,11 @@ pipeline {
     }
 
     stages {
+        stage('Verify Build Artifact') {
+    steps {
+        sh 'ls -l target/'
+    }
+}
         stage('Run Unit Tests') {
             steps { script { unitTests() } }
         }
