@@ -12,26 +12,26 @@ pipeline {
         COMMIT_MESSAGE = "Automated update from Jenkins ${IMAGE_TAG}"
     }
 
-    stages 
-        {
+    stages {
         stage('Check Workspace') {
-    steps {
-        sh 'pwd'
-        sh 'ls -l'
-    }
-}
+            steps {
+                sh 'pwd'
+                sh 'ls -l'
+            }
+        }
 
-        stage('Verify Build Artifact') {
-    steps {
-        sh 'ls -l target/'
-    }
-}
         stage('Run Unit Tests') {
             steps { script { unitTests() } }
         }
 
         stage('Build the Application') {
             steps { script { buildApp() } }
+        }
+
+        stage('Verify Build Artifact') {
+            steps {
+                sh 'ls -l target/'
+            }
         }
 
         stage('Build Docker Image') {
@@ -57,3 +57,4 @@ pipeline {
         failure { echo 'Pipeline completed with failure' }
     }
 }
+
